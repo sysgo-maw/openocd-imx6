@@ -3221,7 +3221,7 @@ COMMAND_HANDLER(handle_load_image_command)
 
 COMMAND_HANDLER(handle_dump_image_command)
 {
-	struct fileio fileio;
+	struct fileio *fileio;
 	uint8_t *buffer;
 	int retval, retvaltemp;
 	uint32_t address, size;
@@ -3254,7 +3254,7 @@ COMMAND_HANDLER(handle_dump_image_command)
 		if (retval != ERROR_OK)
 			break;
 
-		retval = fileio_write(&fileio, this_run_size, buffer, &size_written);
+		retval = fileio_write(fileio, this_run_size, buffer, &size_written);
 		if (retval != ERROR_OK)
 			break;
 
@@ -3266,7 +3266,7 @@ COMMAND_HANDLER(handle_dump_image_command)
 
 	if ((ERROR_OK == retval) && (duration_measure(&bench) == ERROR_OK)) {
 		size_t filesize;
-		retval = fileio_size(&fileio, &filesize);
+		retval = fileio_size(fileio, &filesize);
 		if (retval != ERROR_OK)
 			return retval;
 		command_print(CMD_CTX,
@@ -3274,7 +3274,7 @@ COMMAND_HANDLER(handle_dump_image_command)
 				duration_elapsed(&bench), duration_kbps(&bench, filesize));
 	}
 
-	retvaltemp = fileio_close(&fileio);
+	retvaltemp = fileio_close(fileio);
 	if (retvaltemp != ERROR_OK)
 		return retvaltemp;
 
@@ -3913,6 +3913,8 @@ static int target_mem2array(Jim_Interp *interp, struct target *target, int argc,
 	uint32_t count;
 	uint32_t v;
 	const char *varname;
+	const char *phys;
+	bool is_phys;
 	int  n, e, retval;
 	uint32_t i;
 
@@ -3921,8 +3923,8 @@ static int target_mem2array(Jim_Interp *interp, struct target *target, int argc,
 	 * argv[3] = memory address
 	 * argv[4] = count of times to read
 	 */
-	if (argc != 4) {
-		Jim_WrongNumArgs(interp, 1, argv, "varname width addr nelems");
+	if (argc < 4 || argc > 5) {
+		Jim_WrongNumArgs(interp, 1, argv, "varname width addr nelems [phys]");
 		return JIM_ERR;
 	}
 	varname = Jim_GetString(argv[0], &len);
@@ -3941,6 +3943,14 @@ static int target_mem2array(Jim_Interp *interp, struct target *target, int argc,
 	len = l;
 	if (e != JIM_OK)
 		return e;
+	is_phys = false;
+	if (argc > 4) {
+		phys = Jim_GetString(argv[4], &n);
+		if (!strncmp(phys, "phys", n))
+			is_phys = true;
+		else
+			return JIM_ERR;
+	}
 	switch (width) {
 		case 8:
 			width = 1;
@@ -4006,7 +4016,10 @@ static int target_mem2array(Jim_Interp *interp, struct target *target, int argc,
 		if (count > (buffersize / width))
 			count = (buffersize / width);
 
-		retval = target_read_memory(target, addr, width, count, buffer);
+		if (is_phys)
+			retval = target_read_phys_memory(target, addr, width, count, buffer);
+		else
+			retval = target_read_memory(target, addr, width, count, buffer);
 		if (retval != ERROR_OK) {
 			/* BOO !*/
 			LOG_ERROR("mem2array: Read @ 0x%08x, w=%d, cnt=%d, failed",
@@ -4102,6 +4115,8 @@ static int target_array2mem(Jim_Interp *interp, struct target *target,
 	uint32_t count;
 	uint32_t v;
 	const char *varname;
+	const char *phys;
+	bool is_phys;
 	int  n, e, retval;
 	uint32_t i;
 
@@ -4110,8 +4125,8 @@ static int target_array2mem(Jim_Interp *interp, struct target *target,
 	 * argv[3] = memory address
 	 * argv[4] = count to write
 	 */
-	if (argc != 4) {
-		Jim_WrongNumArgs(interp, 0, argv, "varname width addr nelems");
+	if (argc < 4 || argc > 5) {
+		Jim_WrongNumArgs(interp, 0, argv, "varname width addr nelems [phys]");
 		return JIM_ERR;
 	}
 	varname = Jim_GetString(argv[0], &len);
@@ -4130,6 +4145,14 @@ static int target_array2mem(Jim_Interp *interp, struct target *target,
 	len = l;
 	if (e != JIM_OK)
 		return e;
+	is_phys = false;
+	if (argc > 4) {
+		phys = Jim_GetString(argv[4], &n);
+		if (!strncmp(phys, "phys", n))
+			is_phys = true;
+		else
+			return JIM_ERR;
+	}
 	switch (width) {
 		case 8:
 			width = 1;
@@ -4216,7 +4239,10 @@ static int target_array2mem(Jim_Interp *interp, struct target *target,
 		}
 		len -= count;
 
-		retval = target_write_memory(target, addr, width, count, buffer);
+		if (is_phys)
+			retval = target_write_phys_memory(target, addr, width, count, buffer);
+		else
+			retval = target_write_memory(target, addr, width, count, buffer);
 		if (retval != ERROR_OK) {
 			/* BOO !*/
 			LOG_ERROR("array2mem: Write @ 0x%08x, w=%d, cnt=%d, failed",
@@ -5186,7 +5212,6 @@ static int target_create(Jim_GetOptInfo *goi)
 	Jim_Obj *new_cmd;
 	Jim_Cmd *cmd;
 	const char *cp;
-	char *cp2;
 	int e;
 	int x;
 	struct target *target;
@@ -5211,10 +5236,9 @@ static int target_create(Jim_GetOptInfo *goi)
 	}
 
 	/* TYPE */
-	e = Jim_GetOpt_String(goi, &cp2, NULL);
+	e = Jim_GetOpt_String(goi, &cp, NULL);
 	if (e != JIM_OK)
 		return e;
-	cp = cp2;
 	struct transport *tr = get_current_transport();
 	if (tr->override_target) {
 		e = tr->override_target(&cp);

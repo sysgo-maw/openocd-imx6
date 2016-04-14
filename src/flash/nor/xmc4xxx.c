@@ -181,7 +181,7 @@
 
 /* Flash controller configuration values */
 #define FLASH_ID_XMC4500        0xA2
-#define FLASH_ID_XMC4800        0x92
+#define FLASH_ID_XMC4700_4800   0x92
 #define FLASH_ID_XMC4100_4200   0x9C
 #define FLASH_ID_XMC4400        0x9F
 
@@ -381,9 +381,9 @@ static int xmc4xxx_probe(struct flash_bank *bank)
 		bank->num_sectors = 12;
 		LOG_DEBUG("XMC4xxx: XMC4500 detected.");
 		break;
-	case FLASH_ID_XMC4800:
+	case FLASH_ID_XMC4700_4800:
 		bank->num_sectors = 16;
-		LOG_DEBUG("XMC4xxx: XMC4800 detected.");
+		LOG_DEBUG("XMC4xxx: XMC4700/4800 detected.");
 		break;
 	default:
 		LOG_ERROR("XMC4xxx: Unexpected flash ID. got %02" PRIx8,
@@ -628,16 +628,8 @@ int xmc4xxx_blank_check_memory(struct target *target,
 	struct armv7m_algorithm armv7m_info;
 	int retval;
 
-	/* see contrib/loaders/erase_check/armv7m_0_erase_check.s for src */
-
 	static const uint8_t erase_check_code[] = {
-		/* loop: */
-		0x03, 0x78,		/* ldrb	r3, [r0] */
-		0x01, 0x30,		/* adds	r0, #1 */
-		0x1A, 0x43,		/* orrs	r2, r2, r3 */
-		0x01, 0x39,		/* subs	r1, r1, #1 */
-		0xFA, 0xD1,		/* bne	loop */
-		0x00, 0xBE		/* bkpt	#0 */
+#include "../../../contrib/loaders/erase_check/armv7m_0_erase_check.inc"
 	};
 
 	/* make sure we have a working area */
@@ -980,6 +972,15 @@ static int xmc4xxx_get_info_command(struct flash_bank *bank, char *buf, int buf_
 			break;
 		case 0x4:
 			rev_str = "AC";
+			break;
+		}
+		break;
+	case 0x700:
+		dev_str = "XMC4700";
+
+		switch (rev_id) {
+		case 0x1:
+			rev_str = "EES-AA";
 			break;
 		}
 		break;

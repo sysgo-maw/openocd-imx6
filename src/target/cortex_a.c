@@ -55,6 +55,7 @@
 #include "target_request.h"
 #include "target_type.h"
 #include "arm_opcodes.h"
+#include "arm_semihosting.h"
 #include <helper/time_support.h>
 
 static int cortex_a_poll(struct target *target);
@@ -299,7 +300,7 @@ static int cortex_a_wait_instrcmpl(struct target *target, uint32_t *dscr, bool f
 	 * Writes final value of DSCR into *dscr. Pass force to force always
 	 * reading DSCR at least once. */
 	struct armv7a_common *armv7a = target_to_armv7a(target);
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	while ((*dscr & DSCR_INSTR_COMP) == 0 || force) {
 		force = false;
 		int retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
@@ -342,7 +343,7 @@ static int cortex_a_exec_opcode(struct target *target,
 	if (retval != ERROR_OK)
 		return retval;
 
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	do {
 		retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 				armv7a->debug_base + CPUDBG_DSCR, &dscr);
@@ -431,7 +432,7 @@ static int cortex_a_dap_read_coreregister_u32(struct target *target,
 	}
 
 	/* Wait for DTRRXfull then read DTRRTX */
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	while ((dscr & DSCR_DTR_TX_FULL) == 0) {
 		retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 				armv7a->debug_base + CPUDBG_DSCR, &dscr);
@@ -574,7 +575,7 @@ static int cortex_a_read_dcc(struct cortex_a_common *a, uint32_t *data,
 		dscr = *dscr_p;
 
 	/* Wait for DTRRXfull */
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	while ((dscr & DSCR_DTR_TX_FULL) == 0) {
 		retval = mem_ap_read_atomic_u32(a->armv7a_common.debug_ap,
 				a->armv7a_common.debug_base + CPUDBG_DSCR,
@@ -606,7 +607,7 @@ static int cortex_a_dpm_prepare(struct arm_dpm *dpm)
 	int retval;
 
 	/* set up invariant:  INSTR_COMP is set after ever DPM operation */
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	for (;; ) {
 		retval = mem_ap_read_atomic_u32(a->armv7a_common.debug_ap,
 				a->armv7a_common.debug_base + CPUDBG_DSCR,
@@ -917,6 +918,10 @@ static int cortex_a_poll(struct target *target)
 					if (retval != ERROR_OK)
 						return retval;
 				}
+
+				if (arm_semihosting(target, &retval) != 0)
+					return retval;
+
 				target_call_event_callbacks(target,
 					TARGET_EVENT_HALTED);
 			}
@@ -974,7 +979,7 @@ static int cortex_a_halt(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	for (;; ) {
 		retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 				armv7a->debug_base + CPUDBG_DSCR, &dscr);
@@ -1121,7 +1126,7 @@ static int cortex_a_internal_restart(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	for (;; ) {
 		retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 				armv7a->debug_base + CPUDBG_DSCR, &dscr);
@@ -1203,7 +1208,7 @@ static int cortex_a_resume(struct target *target, int current,
 static int cortex_a_debug_entry(struct target *target)
 {
 	int i;
-	uint32_t regfile[16], cpsr, dscr;
+	uint32_t regfile[16], cpsr, spsr, dscr;
 	int retval = ERROR_OK;
 	struct working_area *regfile_working_area = NULL;
 	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
@@ -1252,6 +1257,7 @@ static int cortex_a_debug_entry(struct target *target)
 	if (cortex_a->fast_reg_read)
 		target_alloc_working_area(target, 64, &regfile_working_area);
 
+
 	/* First load register acessible through core debug port*/
 	if (!regfile_working_area)
 		retval = arm_dpm_read_current_registers(&armv7a->dpm);
@@ -1295,6 +1301,17 @@ static int cortex_a_debug_entry(struct target *target)
 		buf_set_u32(reg->value, 0, 32, regfile[ARM_PC]);
 		reg->dirty = reg->valid;
 	}
+
+	/* read Saved PSR */
+	retval = cortex_a_dap_read_coreregister_u32(target, &spsr, 17);
+	/*  store current spsr */
+	if (retval != ERROR_OK)
+		return retval;
+
+	reg = arm->spsr;
+	buf_set_u32(reg->value, 0, 32, spsr);
+	reg->valid = 1;
+	reg->dirty = 0;
 
 #if 0
 /* TODO, Move this */
@@ -1443,7 +1460,7 @@ static int cortex_a_step(struct target *target, int current, uint32_t address,
 	if (retval != ERROR_OK)
 		return retval;
 
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	while (target->state != TARGET_HALTED) {
 		retval = cortex_a_poll(target);
 		if (retval != ERROR_OK)
@@ -1979,7 +1996,7 @@ static int cortex_a_wait_dscr_bits(struct target *target, uint32_t mask,
 {
 	/* Waits until the specified bit(s) of DSCR take on a specified value. */
 	struct armv7a_common *armv7a = target_to_armv7a(target);
-	long long then = timeval_ms();
+	int64_t then = timeval_ms();
 	int retval;
 
 	while ((*dscr & mask) != value) {
@@ -2925,6 +2942,7 @@ static int cortex_a_handle_target_request(void *priv)
 				armv7a->debug_base + CPUDBG_DSCR, &dscr);
 
 		/* check if we have data */
+		int64_t then = timeval_ms();
 		while ((dscr & DSCR_DTR_TX_FULL) && (retval == ERROR_OK)) {
 			retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 					armv7a->debug_base + CPUDBG_DTRTX, &request);
@@ -2932,6 +2950,10 @@ static int cortex_a_handle_target_request(void *priv)
 				target_request(target, request);
 				retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 						armv7a->debug_base + CPUDBG_DSCR, &dscr);
+			}
+			if (timeval_ms() > then + 1000) {
+				LOG_ERROR("Timeout waiting for dtr tx full");
+				return ERROR_FAIL;
 			}
 		}
 	}
@@ -2948,6 +2970,7 @@ static int cortex_a_examine_first(struct target *target)
 	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
 	struct armv7a_common *armv7a = &cortex_a->armv7a_common;
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
+
 	int i;
 	int retval = ERROR_OK;
 	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg;
@@ -3348,17 +3371,14 @@ COMMAND_HANDLER(handle_cortex_a_mask_interrupts_command)
 	};
 	const Jim_Nvp *n;
 
-	if (target->state != TARGET_HALTED) {
-		command_print(CMD_CTX, "target must be stopped for \"%s\" command", CMD_NAME);
-		return ERROR_OK;
-	}
-
 	if (CMD_ARGC > 0) {
 		n = Jim_Nvp_name2value_simple(nvp_maskisr_modes, CMD_ARGV[0]);
-		if (n->name == NULL)
+		if (n->name == NULL) {
+			LOG_ERROR("Unknown parameter: %s - should be off or on", CMD_ARGV[0]);
 			return ERROR_COMMAND_SYNTAX_ERROR;
-		cortex_a->isrmasking_mode = n->value;
+		}
 
+		cortex_a->isrmasking_mode = n->value;
 	}
 
 	n = Jim_Nvp_value2name_simple(nvp_maskisr_modes, cortex_a->isrmasking_mode);
@@ -3430,7 +3450,7 @@ static const struct command_registration cortex_a_exec_command_handlers[] = {
 	{
 		.name = "maskisr",
 		.handler = handle_cortex_a_mask_interrupts_command,
-		.mode = COMMAND_EXEC,
+		.mode = COMMAND_ANY,
 		.help = "mask cortex_a interrupts",
 		.usage = "['on'|'off']",
 	},
