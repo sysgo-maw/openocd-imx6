@@ -3357,12 +3357,6 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 				/* failed crc checksum, fall back to a binary compare */
 				uint8_t *data;
 
-				if (verify != 1) {
-					LOG_ERROR("checksum mismatch");
-					retval = ERROR_FAIL;
-					goto done;
-				}
-
 				if (diffs == 0)
 					LOG_ERROR("checksum mismatch - attempting binary compare");
 
@@ -3426,11 +3420,6 @@ done:
 COMMAND_HANDLER(handle_verify_image_command)
 {
 	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 1);
-}
-
-COMMAND_HANDLER(handle_verify_image_nodiff_command)
-{
-	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 2);
 }
 
 COMMAND_HANDLER(handle_test_image_command)
@@ -6151,12 +6140,6 @@ static const struct command_registration target_exec_command_handlers[] = {
 	{
 		.name = "verify_image",
 		.handler = handle_verify_image_command,
-		.mode = COMMAND_EXEC,
-		.usage = "filename [offset [type]]",
-	},
-	{
-		.name = "verify_image_nodiff",
-		.handler = handle_verify_image_nodiff_command,
 		.mode = COMMAND_EXEC,
 		.usage = "filename [offset [type]]",
 	},
