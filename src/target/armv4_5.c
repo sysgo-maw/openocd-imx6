@@ -776,6 +776,7 @@ COMMAND_HANDLER(handle_armv4_5_core_state_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	struct arm *arm = target_to_arm(target);
+	bool cpsr_set = false;
 
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "current target isn't an ARM");
@@ -789,10 +790,22 @@ COMMAND_HANDLER(handle_armv4_5_core_state_command)
 	}
 
 	if (CMD_ARGC > 0) {
-		if (strcmp(CMD_ARGV[0], "arm") == 0)
+		if (strcmp(CMD_ARGV[0], "arm") == 0) {
 			arm->core_state = ARM_STATE_ARM;
-		if (strcmp(CMD_ARGV[0], "thumb") == 0)
+			buf_set_u32(arm->cpsr->value, 5, 1, 0);
+			cpsr_set = true;
+		} else
+		if (strcmp(CMD_ARGV[0], "thumb") == 0) {
 			arm->core_state = ARM_STATE_THUMB;
+			buf_set_u32(arm->cpsr->value, 5, 1, 1);
+			cpsr_set = true;
+		}
+		if (cpsr_set) {
+			/* make sure to clear the J bit, too */
+			buf_set_u32(arm->cpsr->value, 24, 1, 0);
+			arm->cpsr->valid = 1;
+			arm->cpsr->dirty = 1;
+		}
 	}
 
 	command_print(CMD_CTX, "core state: %s", arm_state_strings[arm->core_state]);
