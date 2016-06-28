@@ -24,9 +24,7 @@
  *   GNU General Public License for more details.                          *
  *                                                                         *
  *   You should have received a copy of the GNU General Public License     *
- *   along with this program; if not, write to the                         *
- *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -350,12 +348,12 @@ static int arm7_9_unset_breakpoint(struct target *target, struct breakpoint *bre
 			if (retval != ERROR_OK)
 				return retval;
 			current_instr = target_buffer_get_u16(target, (uint8_t *)&current_instr);
-			if (current_instr == arm7_9->thumb_bkpt)
+			if (current_instr == arm7_9->thumb_bkpt) {
 				retval = target_write_memory(target,
 						breakpoint->address, 2, 1, breakpoint->orig_instr);
 				if (retval != ERROR_OK)
 					return retval;
-
+			}
 		}
 
 		if (--arm7_9->sw_breakpoint_count == 0) {

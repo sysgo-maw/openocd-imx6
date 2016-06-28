@@ -12,9 +12,7 @@
  *   GNU General Public License for more details.                          *
  *                                                                         *
  *   You should have received a copy of the GNU General Public License     *
- *   along with this program; if not, write to the                         *
- *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -24,6 +22,7 @@
 
 extern struct flash_driver aduc702x_flash;
 extern struct flash_driver aducm360_flash;
+extern struct flash_driver ambiqmicro_flash;
 extern struct flash_driver at91sam3_flash;
 extern struct flash_driver at91sam4_flash;
 extern struct flash_driver at91sam4l_flash;
@@ -75,6 +74,7 @@ extern struct flash_driver xmc4xxx_flash;
 static struct flash_driver *flash_drivers[] = {
 	&aduc702x_flash,
 	&aducm360_flash,
+	&ambiqmicro_flash,
 	&at91sam3_flash,
 	&at91sam4_flash,
 	&at91sam4l_flash,

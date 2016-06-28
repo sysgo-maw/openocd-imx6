@@ -25,9 +25,7 @@
  *   GNU General Public License for more details.                          *
  *                                                                         *
  *   You should have received a copy of the GNU General Public License     *
- *   along with this program; if not, write to the                         *
- *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -1920,7 +1918,7 @@ COMMAND_HANDLER(kinetis_nvm_partition)
 }
 
 
-static const struct command_registration kinetis_securtiy_command_handlers[] = {
+static const struct command_registration kinetis_security_command_handlers[] = {
 	{
 		.name = "check_security",
 		.mode = COMMAND_EXEC,
@@ -1944,7 +1942,7 @@ static const struct command_registration kinetis_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "",
 		.usage = "",
-		.chain = kinetis_securtiy_command_handlers,
+		.chain = kinetis_security_command_handlers,
 	},
 	{
 		.name = "disable_wdog",

@@ -34,9 +34,7 @@
  *   GNU General Public License for more details.                          *
  *                                                                         *
  *   You should have received a copy of the GNU General Public License     *
- *   along with this program; if not, write to the                         *
- *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -92,6 +90,7 @@ extern struct target_type cortexm_target;
 extern struct target_type cortexa_target;
 extern struct target_type cortexr4_target;
 extern struct target_type arm11_target;
+extern struct target_type ls1_sap_target;
 extern struct target_type mips_m4k_target;
 extern struct target_type avr_target;
 extern struct target_type dsp563xx_target;
@@ -122,6 +121,7 @@ static struct target_type *target_types[] = {
 	&cortexa_target,
 	&cortexr4_target,
 	&arm11_target,
+	&ls1_sap_target,
 	&mips_m4k_target,
 	&avr_target,
 	&dsp563xx_target,
