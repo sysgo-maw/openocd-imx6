@@ -100,7 +100,6 @@
 #define MEM_AP_REG_BASE		0xF8		/* RO: Debug Base Address register */
 #define MEM_AP_REG_BASE_MASK	0xffff0000
 #define MEM_AP_REG_BASE_VALID	(1UL << 0)
-#define MEM_AP_REG_BASE_CM	0xe00f0000
 /* Generic AP register address */
 #define AP_REG_IDR			0xFC		/* RO: Identification Register */
 

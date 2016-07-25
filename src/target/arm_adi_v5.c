@@ -766,10 +766,21 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_a
 			return retval;
 		retval = dap_run(dap);
 		if (retval == ERROR_OK) {
-			if ((baseaddr & MEM_AP_REG_BASE_VALID) &&
-				((baseaddr & MEM_AP_REG_BASE_MASK) == MEM_AP_REG_BASE_CM) &&
-				(type_to_find == AP_TYPE_AHB_AP_CM))
-					type_to_find = AP_TYPE_AHB_AP;
+			if (type_to_find == AP_TYPE_AHB_AP_CM) {
+				/*
+				 * On some SoCs there's an AHB-AP connected to the
+				 * AMBA High Performance Bus which has no connection
+				 * to any debug components and thus no valid ROM table
+				 * When searching specifically for the AHB-AP of a Cortex-M
+				 * core, skip these APs
+				 */
+				if (baseaddr == 0xFFFFFFFF || (baseaddr & MEM_AP_REG_BASE_VALID) == 0)
+					continue;
+
+				/* continue searching for an AHB-AP */
+				type_to_find = AP_TYPE_AHB_AP;
+			}
+
 			/* IDR bits:
 			 * 31-28 : Revision
 			 * 27-24 : JEDEC bank (0x4 for ARM)
@@ -799,11 +810,12 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_a
 		}
 	}
 
-	LOG_DEBUG("No %s found",
+	LOG_DEBUG("No %s (%08x) found",
 				(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
 				(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
 				(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
-				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown");
+				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
+				type_to_find);
 	return ERROR_FAIL;
 }
 
